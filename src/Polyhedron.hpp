@@ -6,6 +6,7 @@
 #include <cmath>
 #include <vector>
 #include <algorithm>
+#include <unordered_set>
 using namespace std;
 using namespace Eigen;
 using namespace PolygonalLibrary;
@@ -405,6 +406,7 @@ faces[7] = Face({vertices[0], vertices[3], vertices[5]},{reverseEdge(edge[1]), r
 	{
 		public:
 		vector<Face> faces;
+        vector<Face> faces_original;
 		vector <Edge> edges;
 		vector <vertex> vertices;
 		unsigned int p;
@@ -427,38 +429,19 @@ faces[7] = Face({vertices[0], vertices[3], vertices[5]},{reverseEdge(edge[1]), r
 			p = p0;
 			q = q0;
 		}
-		void Unique_V();	
+        double round6(double x);
+			
 		void Unique_E();
 		void Restore_F();
 		void OverAll_Triangulation();
         void WriteTXT() const;
   		void Triangulation();
-		void First_Triangulation(vector<vertex>&  , 
-								vector <Edge>&, Face&, 
-								unsigned int& , 
-								unsigned int&,
-								unsigned int&,
-								vector<Face>&, 
-								unsigned int, 
-								size_t, size_t, 
-                             	map<size_t, map<size_t,vertex>>&,map<size_t, map<size_t,vertex>>& );
+		
 		void Triangulation_2();
 		void GenerateDual();
         
 		void printFaces();
-		void Assembler( 	
-						map<size_t,vector<vertex>>& Triangle,
-						 map<size_t, map<size_t,vertex>>& TC,
-						 map<size_t, map<size_t,vertex>>& TCII,
-						size_t k, 
-						size_t j , 
-						unsigned int code,
-						vector<Face>& fill,
-						vector<Edge>& edges,
-						unsigned int& cf,
-						unsigned int& ce
-						);
-
+		
 
     };
 

@@ -28,9 +28,14 @@ class vertex {
     	y/=buff;
     	z/=buff;	
 	}
+		
 		bool operator==(const vertex& other) const {
-   			 return (sqrt((other.x-x)*(other.x-x) + (other.y-y)*(other.y-y)+(other.z-z)*(other.z-z))<2.220446e-16);
-		}
+    		const double EPS = 1e-16;
+    		return (fabs(x - other.x) < EPS &&
+            		fabs(y - other.y) < EPS &&
+           	 		fabs(z - other.z) < EPS);
+}
+
 		
 		bool operator!=(const vertex& other) const {
     		return !(*this == other);
@@ -58,9 +63,12 @@ class Edge {
     	        return sqrt((origin.x - end.x) * (origin.x - end.x) +
                     (origin.y - end.y) * (origin.y - end.y));
 	}
+	
 	bool operator==(const Edge& other) const {
-   			 return (origin==other.origin && end==other.end);
+    return (origin == other.origin && end == other.end) ||
+           (origin == other.end && end == other.origin);
 		}
+
 		
 	bool operator!=(const Edge& other) const {
     		return !(*this == other);
@@ -84,11 +92,12 @@ class Face {
 	
 };
 
+Edge add_unique_edge(vector<Edge>& edges, const vertex& v1, const vertex& v2, unsigned int& counter);
 
-void add_unique_vertex(vector<vertex>& vertices, const vertex& v, int& counter);
+
+void add_unique_vertex(vector<vertex>& vertices, const vertex& v, unsigned int& counter);
 void add_unique_edge(vector<Edge>& , const Edge& );
 void printFace(Face f) ;
 Edge reverseEdge(Edge e);
-//vertex getThirdVertexFromTriangleEdges(const Edge& e0, const Edge& e1);
  }
  

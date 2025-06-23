@@ -10,7 +10,7 @@ TEST(PolyhedronTest, IcosahedronTriangulation) {
     // Parametri per l'icosaedro (p=3, q=5)
     unsigned int p_val = 3;
     unsigned int q_val = 5;
-    unsigned int b_val = 2;  // Puoi cambiare per b=1,2,3...
+    unsigned int b_val = 8;  // Puoi cambiare per b=1,2,3...
     unsigned int c_val = 0;
 
     // Crea l'icosaedro
@@ -86,7 +86,7 @@ TEST(PolyhedronTest, TetrahedronTriangulation) {
 TEST(PolyhedronTest, OctahedronTriangulation) {
     unsigned int p_val = 3;
     unsigned int q_val = 4;
-    unsigned int b_val = 2;  // Cambia b se vuoi test più dettagliati
+    unsigned int b_val = 6;  // Cambia b se vuoi test più dettagliati
     unsigned int c_val = 0;
 
     Octahedron o;
@@ -126,7 +126,7 @@ TEST(PolyhedronTest, IcosahedronShortestPath) {
     // Parametri per l'icosaedro (p=3, q=5)
     unsigned int p_val = 3;
     unsigned int q_val = 5;
-    unsigned int b_val = 2;  // Puoi scegliere 1,2,3...
+    unsigned int b_val = 2;  
     unsigned int c_val = 0;
 
     // Crea l'icosaedro
@@ -144,12 +144,7 @@ TEST(PolyhedronTest, IcosahedronShortestPath) {
     // Calcola il cammino minimo
     auto path = ShortestPath(p.vertices, p.edges, id1, id2);
 
-    // Stampa per debug
-    std::cout << "Cammino minimo da " << id1 << " a " << id2 << ": ";
-    for (const auto& v : path) {
-        std::cout << v.id << " ";
-    }
-    std::cout << std::endl;
+    
 
     // Verifica che il cammino esista e sia valido
     ASSERT_FALSE(path.empty()) << "Nessun cammino trovato.";
@@ -181,12 +176,7 @@ TEST(PolyhedronTest, OctahedronShortestPath) {
     // Calcola il cammino minimo
     auto path = ShortestPath(p.vertices, p.edges, id1, id2);
 
-    // Stampa per debug
-    std::cout << "Cammino minimo da " << id1 << " a " << id2 << ": ";
-    for (const auto& v : path) {
-        std::cout << v.id << " ";
-    }
-    std::cout << std::endl;
+    
 
     // Verifica che il cammino esista e sia valido
     ASSERT_FALSE(path.empty()) << "Nessun cammino trovato.";
@@ -210,7 +200,7 @@ TEST(PolyhedronTest, TetrahedronShortestPath) {
 
     // Seleziona due vertici (0 e uno valido, ad esempio 8)
     unsigned int id1 = 0;
-    unsigned int id2 = p.vertices.size() > 1 ? p.vertices.size() - 1 : 0;;
+    unsigned int id2 = 4;
 
     // Controlla che id2 sia valido
     ASSERT_LT(id2, p.vertices.size()) << "id2 fuori intervallo.";
@@ -218,12 +208,7 @@ TEST(PolyhedronTest, TetrahedronShortestPath) {
     // Calcola il cammino minimo
     auto path = ShortestPath(p.vertices, p.edges, id1, id2);
 
-    // Stampa per debug
-    std::cout << "Cammino minimo da " << id1 << " a " << id2 << ": ";
-    for (const auto& v : path) {
-        std::cout << v.id << " ";
-    }
-    std::cout << std::endl;
+    
 
     // Verifica che il cammino esista e sia valido
     ASSERT_FALSE(path.empty()) << "Nessun cammino trovato.";
@@ -255,11 +240,7 @@ TEST(PolyhedronTest, GenerateDualTest1) {
     // Controlla che ci siano centroidi generati (uno per ogni faccia)
     ASSERT_EQ(p.faces.size(), p.faces.size()) << "Numero di facce e centroidi del duale non corrisponde.";
 
-    // Controlla che siano stati generati archi duali (dual_edges)
-    // (Puoi verificare con una logica simile a quella usata in GenerateDual, se necessario)
     
-    // Debug: puoi stampare le informazioni del duale se vuoi
-    std::cout << "Dual di icosaedro generato per b=" << b_val << ".\n";
 }
 
 // Test per duale di tetraedro
@@ -281,11 +262,7 @@ TEST(PolyhedronTest, GenerateDualTest2) {
     // Controlla che ci siano centroidi generati (uno per ogni faccia)
     ASSERT_EQ(p.faces.size(), p.faces.size()) << "Numero di facce e centroidi del duale non corrisponde.";
 
-    // Controlla che siano stati generati archi duali (dual_edges)
-    // (Puoi verificare con una logica simile a quella usata in GenerateDual, se necessario)
     
-    // Debug: puoi stampare le informazioni del duale se vuoi
-    std::cout << "Dual di tetraedro generato per b=" << b_val << ".\n";
 }
 
 // Test per duale di ottaedro
@@ -308,12 +285,46 @@ TEST(PolyhedronTest, GenerateDualTest3) {
     // Controlla che ci siano centroidi generati (uno per ogni faccia)
     ASSERT_EQ(p.faces.size(), p.faces.size()) << "Numero di facce e centroidi del duale non corrisponde.";
 
-    // Controlla che siano stati generati archi duali (dual_edges)
-    // (Puoi verificare con una logica simile a quella usata in GenerateDual, se necessario)
     
-    // Debug: puoi stampare le informazioni del duale se vuoi
-    std::cout << "Dual di ottaedro generato per b=" << b_val << ".\n";
+  
 }
 
 
+
+/*TEST(PolyhedronTest, TetrahedronClassIITriangulationExactFormula) {
+    unsigned int p_val = 3;
+    unsigned int q_val = 3;
+    unsigned int b_val = 2;
+    unsigned int c_val = 2;  // CLASSE II
+
+    Tetrahedron tetra;
+    _Polyhedron poly(tetra.faces, tetra.edge, tetra.vertices, b_val, c_val, p_val, q_val);
+    poly.Triangulation_2();
+
+    // Dati di partenza
+    unsigned int numF = 4; // Facce del tetraedro
+    unsigned int numV = 4; // Vertici del tetraedro
+    unsigned int numE = 6; // Spigoli del tetraedro 
+    unsigned int b = b_val;
+
+    // Numero atteso di triangolini per faccia
+    unsigned int expected_faces = numF *((3*b* b)+3*b); // Ogni triangolo viene diviso in b^2 triangolini
+    unsigned int expected_vertices = numV + numE * (2 * b - 1) + numF * ((3 * b * b) / 2 - (3 * b) / 2 + 1);
+    unsigned int expected_edges = numE * (2 * b) + numF * ((9 * b * b) / 2 + (3 * b) / 2);
+    unsigned int actual_vertices = poly.vertices.size();
+    unsigned int actual_edges = poly.edges.size();
+    unsigned int actual_faces = poly.faces.size();
+
+    std::cout << "[Classe II] V=" << actual_vertices << ", E=" << actual_edges << ", F=" << actual_faces << "\n";
+
+    //  Controllo solo numero di facce triangolate correttamente
+    ASSERT_EQ(actual_faces, expected_faces) << "Numero di facce errato per triangolazione classe II";
+    ASSERT_EQ(actual_vertices, expected_vertices) << "Numero di vertici errato per triangolazione classe II";
+    ASSERT_EQ(actual_edges, expected_edges) << "Numero di spigoli errato per triangolazione classe II";
+    //  Controllo formula di Eulero
+    int V = static_cast<int>(actual_vertices);
+    int E = static_cast<int>(actual_edges);
+    int F = static_cast<int>(actual_faces);
+    ASSERT_EQ(V - E + F, 2) << "Formula di Eulero fallita.";
+}*/
 

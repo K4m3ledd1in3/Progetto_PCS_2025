@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include "UCDUtilities.hpp"
 #include "Polyhedron.hpp"
@@ -12,7 +13,7 @@ using namespace Gedim;
 
 int main() {
     unsigned int p, q, b, c;
-    cout << "Inserisci p, q, b, c (esempio 3 5 1 0): ";
+    cout << "Inserisci p, q, b, c : ";
     cin >> p >> q >> b >> c;
     _Polyhedron pp;
     // Costruisci il poliedro in base a p, q, b, c

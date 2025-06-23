@@ -6,17 +6,14 @@
 #include <vector>
 #include <set>
 #include <fstream>
+#include <cmath>
+#include <queue>
 using namespace std;
 using namespace Eigen;
 using namespace PolygonalLibrary;
 namespace PolyhedronLibrary{
 
-    //______________________
     
-
-
-   
-    //__________________
     void _Polyhedron::WriteTXT() const
     {
         // Scrittura di Cell0Ds.txt: informazioni sui vertici
@@ -73,114 +70,119 @@ namespace PolyhedronLibrary{
             ofile3.close();
         }
 }
-// Funzione per calcolare il cammino più breve tra due vertici
-    std::vector<PolygonalLibrary::vertex> ShortestPath(
-    std::vector<PolygonalLibrary::vertex>& vertices,
-    std::vector<PolygonalLibrary::Edge>& edges,
+
+
+    vector<PolygonalLibrary::vertex> ShortestPath(
+    vector<PolygonalLibrary::vertex>& vertices,
+    vector<PolygonalLibrary::Edge>& edges,
     unsigned int id1, unsigned int id2) {
+
     const int N = vertices.size();
+
+    // Verifica validità ID
+    if (id1 >= N || id2 >= N) {
+        std::cerr << "Errore: ID vertici non valido.\n";
+        return {};
+    }
+
+    // Costruzione lista di adiacenza non orientata
+    std::unordered_map<int, std::vector<std::pair<int, double>>> adj;
+    for (const auto& edge : edges) {
+        int u = edge.origin.id;
+        int v = edge.end.id;
+        double w = edge.length();
+        adj[u].emplace_back(v, w);
+        adj[v].emplace_back(u, w); // grafo non orientato
+    }
+
+    // Inizializzazione strutture per Dijkstra
     std::vector<double> dist(N, std::numeric_limits<double>::infinity());
     std::vector<int> prev(N, -1);
     std::vector<bool> visited(N, false);
+    using P = std::pair<double, int>; // (distanza, vertice)
+    std::priority_queue<P, std::vector<P>, std::greater<P>> pq;
+
     dist[id1] = 0.0;
-    while (true) {
-        int u = -1;
-        double min_dist = numeric_limits<double>::infinity();
+    pq.push({0.0, id1});
 
-        // Trova il vertice non visitato con distanza minima
-        for (int i = 0; i < N; i++) {
-            if (!visited[i] && dist[i] < min_dist) {
-                min_dist = dist[i];
-                u = i;
-            }
-        }
-        if (u == -1 || u == id2) break; // Nessun vertice raggiungibile o raggiunto il target
+    // Algoritmo di Dijkstra
+    while (!pq.empty()) {
+        auto [d, u] = pq.top(); pq.pop();
+        if (visited[u]) continue;
         visited[u] = true;
-        // Aggiorna le distanze dei vicini tramite gli archi
-        for (size_t i = 0; i < edges.size(); i++) {
-            unsigned int from = edges[i].origin.id;
-            unsigned int to = edges[i].end.id;
-            double length = edges[i].length();
 
-            if (from == u && dist[to] > dist[u] + length) {
-                dist[to] = dist[u] + length;
-                prev[to] = u;
-            }
-            if (to == u && dist[from] > dist[u] + length) {
-                dist[from] = dist[u] + length;
-                prev[from] = u;
+        for (auto [v, w] : adj[u]) {
+            if (dist[u] + w < dist[v]) {
+                dist[v] = dist[u] + w;
+                prev[v] = u;
+                pq.push({dist[v], v});
             }
         }
     }
 
-    // Ricostruzione del cammino
+    // Ricostruzione del cammino minimo
     std::vector<unsigned int> path_ids;
-    int at = id2;
-    if (prev[at] == -1 && at != (int)id1) {
-        std::cout << "Nessun cammino trovato.\n";
-        return std::vector<PolygonalLibrary::vertex>();
-    }
-
-    while (at != -1) {
+    for (int at = id2; at != -1; at = prev[at]) {
         path_ids.push_back(at);
-        at = prev[at];
     }
+    if (path_ids.back() != id1) {
+        std::cout << "Nessun cammino trovato.\n";
+        return {};
+    }
+    std::reverse(path_ids.begin(), path_ids.end());
 
-    // Inverti il cammino
-    std::vector<unsigned int> correct_path;
-    for (int i = path_ids.size() - 1; i >= 0; i--) {
-        correct_path.push_back(path_ids[i]);
-    }
-    // Marcare ShortPath
-    for (size_t i = 0; i < vertices.size(); i++) {
-        vertices[i].ShortPath = 0;
-    }
-    for (size_t i = 0; i < correct_path.size(); i++) {
-        vertices[correct_path[i]].ShortPath = 1;
-    }
+    // Marcare ShortPath = 1 sui vertici
+    for (auto& v : vertices) v.ShortPath = 0;
+    for (int id : path_ids) vertices[id].ShortPath = 1;
 
-    for (size_t i = 0; i < edges.size(); i++) {
-        unsigned int from = edges[i].origin.id;
-        unsigned int to = edges[i].end.id;
-       for (int i = 0; i < correct_path.size() - 1; ++i) {
-        unsigned int from = correct_path[i];
-        unsigned int to = correct_path[i + 1];
-
-        for (auto& edge : edges) {
-            if ((edge.origin.id == from && edge.end.id == to) ||
-                (edge.origin.id == to && edge.end.id == from)) {
-                edge.ShortPath = 1;
+    // Marcare ShortPath = 1 sugli archi
+    for (auto& e : edges) e.ShortPath = 0;
+    for (size_t i = 0; i + 1 < path_ids.size(); ++i) {
+        int a = path_ids[i], b = path_ids[i + 1];
+        bool found = false;
+        for (auto& e : edges) {
+            if ((e.origin.id == a && e.end.id == b) || 
+                (e.origin.id == b && e.end.id == a)) {
+                e.ShortPath = 1;
+                found = true;
                 break;
             }
         }
-}
+        if (!found) {
+            std::cerr << "⚠ Arco mancante tra " << a << " e " << b << ", lo aggiungo forzatamente.\n";
+            Edge e(vertices[a], vertices[b], edges.size());
+            e.ShortPath = 1;
+            edges.push_back(e);
+        }
 
     }
-    // Calcolo lunghezza e numero lati
+
+    // Calcolo numero di lati e lunghezza totale
     double total_length = 0.0;
-    int num_edges = correct_path.size() - 1;
-    for (int i = 0; i < num_edges; i++) {
-        unsigned int from = correct_path[i];
-        unsigned int to = correct_path[i+1];
-        for (size_t j = 0; j < edges.size(); j++) {
-            if ((edges[j].origin.id == from && edges[j].end.id == to) ||
-                (edges[j].origin.id == to && edges[j].end.id == from)) {
-                total_length += edges[j].length();
+    for (size_t i = 0; i + 1 < path_ids.size(); ++i) {
+        int a = path_ids[i], b = path_ids[i + 1];
+        for (const auto& e : edges) {
+            if ((e.origin.id == a && e.end.id == b) || 
+                (e.origin.id == b && e.end.id == a)) {
+                total_length += e.length();
                 break;
             }
         }
     }
-    cout << "Cammino minimo tra " << id1 << " e " << id2 << ": "
-              << num_edges << " lati, lunghezza totale " << total_length << "\n";
 
-    // Ritorna il cammino come vector di vertex
-    vector<PolygonalLibrary::vertex> path_vertices;
-    for (size_t i = 0; i < correct_path.size(); i++) {
-        path_vertices.push_back(vertices[correct_path[i]]);
+    std::cout << "Cammino minimo tra " << id1 << " e " << id2
+              << ": " << path_ids.size() - 1
+              << " lati, lunghezza totale " << total_length << "\n";
+
+    // Costruzione del vettore di vertex da restituire
+    std::vector<PolygonalLibrary::vertex> path_vertices;
+    for (int id : path_ids) {
+        path_vertices.push_back(vertices[id]);
     }
 
     return path_vertices;
-}
+    }   
+
 
 	void Icosahedron::display() const{
 			for(size_t i=0; i<vertices.size(); i++){
@@ -232,190 +234,184 @@ namespace PolyhedronLibrary{
 		printFace(face);
 	}	
 	}
+    //______________________
+        // Trova il vertice comune tra due archi
+    vertex find_common_vertex(const Edge& e1, const Edge& e2) {
+        if (e1.origin == e2.origin || e1.origin == e2.end)
+            return e1.origin;
+        else
+            return e1.end;
+    }
+
+    // Dato un arco e il vertice comune, restituisce l'altro vertice
+    vertex get_other_vertex(const Edge& e, const vertex& common) {
+        return (e.origin == common) ? e.end : e.origin;
+    }
+
+    
+
+
+    double _Polyhedron::round6(double x) {
+        return round(x * 1e6) / 1e6;
+    }
+
     void _Polyhedron::Triangulation() {
+    faces_original = faces;
     vector<Edge> edges_1;
     vector<Face> faces_1;
     vector<vertex> ver_1;
-    if ((b == 0 && c != 0) || (b != 0 && c == 0)) {
-        if (p == 3) {
-            unsigned int T = b * b + c * b + c * c;
+    
+    if(b==0){
+            b=c;
+        }else{
+            c=b;
+        }
+    if (p == 3) {
+        unsigned int T = b * b + c * b + c * c;
 
-            switch (q) {
-                case 3:
-                    NumVer = 2 * T + 2; NumEdg = 6 * T; NumFcs = 4 * T;
-                    break;
-                case 4:
-                    NumVer = 4 * T + 2; NumEdg = 12 * T; NumFcs = 8 * T;
-                    break;
-                case 5:
-                    NumVer = 10 * T; NumEdg = 30 * T; NumFcs = 20 * T;
-                    break;
-            }
+        switch (q) {
+            case 3:
+                NumVer = 2 * T + 2; NumEdg = 6 * T; NumFcs = 4 * T;
+                break;
+            case 4:
+                NumVer = 4 * T + 2; NumEdg = 12 * T; NumFcs = 8 * T;
+                break;
+            case 5:
+                NumVer = 10 * T; NumEdg = 30 * T; NumFcs = 20 * T;
+                break;
+        }
 
-            faces_1.reserve(NumFcs);
-            edges_1.reserve(NumEdg);
-            edges.reserve(NumEdg);
-            vertices.reserve(NumVer);
-            ver_1.reserve(NumVer);
-            unsigned int id_edge = 0;
-            unsigned int id_faces = 0;
-            vertex v;
-            vertex v1;
-            map<unsigned int, vector<vertex>> Triangle;
-            vector<size_t> index_edges(3);
-            size_t cv = 0;
-            if(b==0){
-                b=c;
-            }else{
-                c=b;
-            }
-            unsigned int count=0;
-            map<tuple<double, double, double>, unsigned int> vertex_map;
-            unsigned int next_id = 0;
+        faces_1.reserve(NumFcs);
+        edges_1.reserve(NumEdg);
+        edges.reserve(NumEdg);
+        vertices.reserve(NumVer);
+        ver_1.reserve(NumVer);
+        unsigned int id_edge = 0;
+        unsigned int id_faces = 0;
+        vertex v;
+        vertex v1;
+        map<unsigned int, vector<vertex>> Triangle;
+        vector<size_t> index_edges(3);
+        size_t cv = 0;
+        
+        unsigned int count=0;
+        map<tuple<double, double, double>, unsigned int> vertex_map;
+        unsigned int next_id = 0;
 
-            for (size_t i = 0; i < faces.size(); i++) {
-                for (size_t k = 0; k < b ; k++) {
-                    Triangle[k].resize(k + 2);
-                    vertex v0;
-                    vertex v_origin;
+        for (size_t i = 0; i < faces.size(); i++) {
+            for (size_t k = 0; k < b ; k++) {
+                Triangle[k].resize(k + 2);
+                            // Prendi i primi due vertici della faccia
+                vertex v = faces[i].vertices[0];
+                vertex v_end_0 = faces[i].vertices[1];
+                vertex v_end_1 = faces[i].vertices[2];
 
-                    if (faces[i].edges[1].end != faces[i].edges[0].end) {
-                        if (faces[i].edges[1].end == faces[i].edges[0].origin) {
-                            v = faces[i].edges[0].origin;
-                            v0 = vertex(
-                                (faces[i].edges[0].end.x - faces[i].edges[0].origin.x) * (k + 1) / float(b) + faces[i].edges[0].origin.x,
-                                (faces[i].edges[0].end.y - faces[i].edges[0].origin.y) * (k + 1) / double(b) + faces[i].edges[0].origin.y,
-                                (faces[i].edges[0].end.z - faces[i].edges[0].origin.z) * (k + 1) / double(b) + faces[i].edges[0].origin.z,
-                                cv++
-                            );
-                            v1 = vertex(
-                                (faces[i].edges[1].end.x - faces[i].edges[1].origin.x) * (b - k - 1) / double(b) + faces[i].edges[1].origin.x,
-                                (faces[i].edges[1].end.y - faces[i].edges[1].origin.y) * (b - k - 1) / double(b) + faces[i].edges[1].origin.y,
-                                (faces[i].edges[1].end.z - faces[i].edges[1].origin.z) * (b - k - 1) / double(b) + faces[i].edges[1].origin.z,
-                                cv++
-                            );
-                        } else if (faces[i].edges[1].origin == faces[i].edges[0].origin) {
-                            v = faces[i].edges[0].origin;
-                            v0 = vertex(
-                                (faces[i].edges[0].end.x - faces[i].edges[0].origin.x) * (k + 1) / float(b) + faces[i].edges[0].origin.x,
-                                (faces[i].edges[0].end.y - faces[i].edges[0].origin.y) * (k + 1) / double(b) + faces[i].edges[0].origin.y,
-                                (faces[i].edges[0].end.z - faces[i].edges[0].origin.z) * (k + 1) / double(b) + faces[i].edges[0].origin.z,
-                                cv++
-                            );
-                            v1 = vertex(
-                                (faces[i].edges[1].end.x - faces[i].edges[1].origin.x) * (k + 1) / double(b) + faces[i].edges[1].origin.x,
-                                (faces[i].edges[1].end.y - faces[i].edges[1].origin.y) * (k + 1) / double(b) + faces[i].edges[1].origin.y,
-                                (faces[i].edges[1].end.z - faces[i].edges[1].origin.z) * (k + 1) / double(b) + faces[i].edges[1].origin.z,
-                                cv++
-                            );
-                        } else if (faces[i].edges[0].end == faces[i].edges[1].origin) {
-                            v = faces[i].edges[0].end;
-                            v0 = vertex(
-                                (faces[i].edges[0].end.x - faces[i].edges[0].origin.x) * (b - k - 1) / float(b) + faces[i].edges[0].origin.x,
-                                (faces[i].edges[0].end.y - faces[i].edges[0].origin.y) * (b - k - 1) / double(b) + faces[i].edges[0].origin.y,
-                                (faces[i].edges[0].end.z - faces[i].edges[0].origin.z) * (b - k - 1) / double(b) + faces[i].edges[0].origin.z,
-                                cv++
-                            );
-                            v1 = vertex(
-                                (faces[i].edges[1].end.x - faces[i].edges[1].origin.x) * (k + 1) / double(b) + faces[i].edges[1].origin.x,
-                                (faces[i].edges[1].end.y - faces[i].edges[1].origin.y) * (k + 1) / double(b) + faces[i].edges[1].origin.y,
-                                (faces[i].edges[1].end.z - faces[i].edges[1].origin.z) * (k + 1) / double(b) + faces[i].edges[1].origin.z,
-                                cv++
-                            );
-                        }
-                    } else if (faces[i].edges[0].end == faces[i].edges[1].end) {
-                        v = faces[i].edges[0].end;
-                        v0 = vertex(
-                            (faces[i].edges[0].end.x - faces[i].edges[0].origin.x) * (b - k - 1) / double(b) + faces[i].edges[0].origin.x,
-                            (faces[i].edges[0].end.y - faces[i].edges[0].origin.y) * (b - k - 1) / double(b) + faces[i].edges[0].origin.y,
-                            (faces[i].edges[0].end.z - faces[i].edges[0].origin.z) * (b - k - 1) / double(b) + faces[i].edges[0].origin.z,
-                            cv++
-                        );
-                        v1 = vertex(
-                            (faces[i].edges[1].end.x - faces[i].edges[1].origin.x) * (b - k - 1) / double(b) + faces[i].edges[1].origin.x,
-                            (faces[i].edges[1].end.y - faces[i].edges[1].origin.y) * (b - k - 1) / double(b) + faces[i].edges[1].origin.y,
-                            (faces[i].edges[1].end.z - faces[i].edges[1].origin.z) * (b - k - 1) / double(b) + faces[i].edges[1].origin.z,
-                            cv++
-                        );
-                    }
+                // Interpolazione su edge[0]
+                vertex v0(
+                    (v_end_0.x - v.x) * (k + 1) / double(b) + v.x,
+                    (v_end_0.y - v.y) * (k + 1) / double(b) + v.y,
+                    (v_end_0.z - v.z) * (k + 1) / double(b) + v.z,
+                    0 // id temporaneo
+                );
 
-                    // Filtro duplicati per v0 e v1
-                    tuple<double, double, double> key_v0(v0.x, v0.y, v0.z);
-                    if (vertex_map.count(key_v0)) {
-                        v0.id = vertex_map[key_v0];
+                // Interpolazione su edge[1]
+                vertex v1(
+                    (v_end_1.x - v.x) * (k + 1) / double(b) + v.x,
+                    (v_end_1.y - v.y) * (k + 1) / double(b) + v.y,
+                    (v_end_1.z - v.z) * (k + 1) / double(b) + v.z,
+                    0 // id temporaneo
+                );
+                
+
+                // Filtro duplicati per v0 
+                tuple<double, double, double> key_v0(round6(v0.x), round6(v0.y), round6(v0.z));
+                if (vertex_map.count(key_v0)) {
+                    v0.id = vertex_map[key_v0];
+                } else {
+                    v0.id = next_id++;
+                    vertex_map[key_v0] = v0.id;
+                    ver_1.push_back(v0);
+                }
+                //Filtro duplicati per v1
+                tuple<double, double, double> key_v1(round6(v1.x), round6(v1.y), round6(v1.z));
+                if (vertex_map.count(key_v1)) {
+                    v1.id = vertex_map[key_v1];
+                } else {
+                    v1.id = next_id++;
+                    vertex_map[key_v1] = v1.id;
+                    ver_1.push_back(v1);
+                }
+                // Inserisco estremi nella riga
+                Triangle[k][0] = v0;
+                Triangle[k][k+1] = v1;
+                // Inserisco punti interni
+                for (size_t j = 0; j < k; j++) {
+                    double t = double(j+1) / (k + 1);
+                    //vertex v2(v0.x + t*(v1.x-v0.x), v0.y + t*(v1.y-v0.y), v0.z + t*(v1.z-v0.z), cv++);
+                    vertex v2(v0.x + t * (v1.x - v0.x),v0.y + t * (v1.y - v0.y),v0.z + t * (v1.z - v0.z),0 );
+                    tuple<double, double, double> key_v2(round6(v2.x), round6(v2.y), round6(v2.z));
+                    if (vertex_map.count(key_v2)) {
+                        v2.id = vertex_map[key_v2];
                     } else {
-                        v0.id = next_id++;
-                        vertex_map[key_v0] = v0.id;
-                        ver_1.push_back(v0);
+                        v2.id = next_id++;
+                        vertex_map[key_v2] = v2.id;
+                        ver_1.push_back(v2);
                     }
-                    tuple<double, double, double> key_v1(v1.x, v1.y, v1.z);
-                    if (vertex_map.count(key_v1)) {
-                        v1.id = vertex_map[key_v1];
-                    } else {
-                        v1.id = next_id++;
-                        vertex_map[key_v1] = v1.id;
-                        ver_1.push_back(v1);
-                    }
+                    Triangle[k][j+1] = v2;
+                }
 
-                    Triangle[k][0] = v0;
-                    Triangle[k][k+1] = v1;
-
-                    for (size_t j = 0; j < k; j++) {
-                        double t = double(j+1) / (k + 1);
-                        vertex v2(v0.x + t*(v1.x-v0.x), v0.y + t*(v1.y-v0.y), v0.z + t*(v1.z-v0.z), cv++);
-                        tuple<double, double, double> key_v2(v2.x, v2.y, v2.z);
-                        if (vertex_map.count(key_v2)) {
-                            v2.id = vertex_map[key_v2];
-                        } else {
-                            v2.id = next_id++;
-                            vertex_map[key_v2] = v2.id;
-                            ver_1.push_back(v2);
-                        }
-                        Triangle[k][j+1] = v2;
-                    }
-
-                    if (k > 0) {
-                        for (size_t j = 0; j < k + 1 ; j++) {
-                            if (j + 1 >= Triangle[k].size() || j >= Triangle[k-1].size()) continue;
-                            Edge e0(Triangle[k-1][j], Triangle[k][j], id_edge++, count+1);
-                            Edge e1(Triangle[k][j], Triangle[k][j+1], id_edge++, count+1);
-                            Edge e2(Triangle[k][j+1], Triangle[k-1][j], id_edge++, count+1);
-                            count+=3;
-                            vector<Edge> e = {e0, e1, e2};
-                            vector<vertex> ver = {Triangle[k-1][j], Triangle[k][j], Triangle[k][j+1]};
-                            if (j>0) {
-                                vector<vertex> hidden = {Triangle[k-1][j], Triangle[k-1][j-1], Triangle[k][j]};
-                                Edge _e1(Triangle[k][j], Triangle[k-1][j-1], -1);
-                                Edge _e2(Triangle[k-1][j-1], Triangle[k-1][j], -1);
-                                vector<Edge> _e = {_e1, _e2, e0};
-                                faces_1.push_back(Face(hidden, _e, id_faces++, 0));
-                            }
-                            faces_1.push_back(Face(ver, e, id_faces++, 0));
-                            edges_1.push_back(e0);
-                            edges_1.push_back(e1);
-                            edges_1.push_back(e2);
-                        }
-                    } else if(k==0) {
-                        tuple<double, double, double> key_v(v.x, v.y, v.z);
-                        if (vertex_map.count(key_v)) {
-                            v.id = vertex_map[key_v];
-                        } else {
-                            v.id = next_id++;
-                            vertex_map[key_v] = v.id;
-                            ver_1.push_back(v);
-                        }
-
-                        Edge e0(v, v0, id_edge++, count+1);
-                        Edge e1(v0, v1, id_edge++, count+1);
-                        Edge e2(v1, v, id_edge++, count+1);
+                if (k > 0) {
+                    for (size_t j = 0; j < k + 1 ; j++) {
+                        if (j + 1 >= Triangle[k].size() || j >= Triangle[k-1].size()) continue;
+                    
+                        //Primo triangolo
+                        Edge e0(Triangle[k-1][j], Triangle[k][j], id_edge++, 0);
+                        Edge e1(Triangle[k][j], Triangle[k][j+1], id_edge++, 0);
+                        Edge e2(Triangle[k][j+1], Triangle[k-1][j], id_edge++, 0);
                         count+=3;
                         vector<Edge> e = {e0, e1, e2};
-                        vector<vertex> ver = {v, v0, v1};
+                        vector<vertex> ver = {Triangle[k-1][j], Triangle[k][j], Triangle[k][j+1]};
                         faces_1.push_back(Face(ver, e, id_faces++, 0));
-                        edges_1.push_back(e0);
-                        edges_1.push_back(e1);
-                        edges_1.push_back(e2);
+                        if (j > 0 && j - 1 < Triangle[k - 1].size()) {
+                            vector<vertex> hidden = {Triangle[k - 1][j], Triangle[k - 1][j - 1], Triangle[k][j]};
+
+                            Edge _e1(Triangle[k][j], Triangle[k - 1][j - 1], id_edge++, 0);
+                            Edge _e2(Triangle[k - 1][j - 1], Triangle[k - 1][j], id_edge++, 0);
+                            Edge _e3(Triangle[k - 1][j], Triangle[k][j], id_edge++, 0);
+
+                            vector<Edge> _e = {_e1, _e2, _e3};
+                            faces_1.push_back(Face(hidden, _e, id_faces++, 0));
+
+                            add_unique_edge(edges_1, _e1);
+                            add_unique_edge(edges_1, _e2);
+                            add_unique_edge(edges_1, _e3);
+                            }
+
+                                                    
+                        add_unique_edge(edges_1, e0);
+                        add_unique_edge(edges_1, e1);
+                        add_unique_edge(edges_1, e2);
                     }
+                } else if(k==0) {
+                    tuple<double, double, double> key_v(round6(v.x), round6(v.y), round6(v.z));
+                    if (vertex_map.count(key_v)) {
+                        v.id = vertex_map[key_v];
+                    } else {
+                        v.id = next_id++;
+                        vertex_map[key_v] = v.id;
+                        ver_1.push_back(v);
+                    }
+
+                    Edge e0(v, v0, id_edge++, 0);
+                    Edge e1(v0, v1, id_edge++, 0);
+                    Edge e2(v1, v, id_edge++, 0);
+                    count+=3;
+                    vector<Edge> e = {e0, e1, e2};
+                    vector<vertex> ver = {v, v0, v1};
+                    faces_1.push_back(Face(ver, e, id_faces++, 0));
+                    add_unique_edge(edges_1, e0);
+                    add_unique_edge(edges_1, e1);
+                    add_unique_edge(edges_1, e2);
                 }
             }
         }
@@ -423,655 +419,202 @@ namespace PolyhedronLibrary{
     edges = edges_1;
     faces = faces_1;
     vertices = ver_1;
-}
+    }
 
-    void _Polyhedron::First_Triangulation(
-   	vector<vertex>& vertices,
-    vector<Edge>& edges,
-    Face& originalFace,
-    unsigned int& cv,
-    unsigned int& ce,
-    unsigned int& cf,
-    vector<Face>& fill,unsigned int code, 
-	size_t k, size_t j, 
-   map<size_t, map<size_t,vertex>>& _Triangle,
-   map<size_t, map<size_t,vertex>>& _TriangleI
-)
-{
-    const double heightRatio = sqrt(3.0) / 4.0;
     
-    Edge v_0 = originalFace.edges[0];
-    Edge v_1 = originalFace.edges[1];
-    Edge v_2 = originalFace.edges[2];
+        void _Polyhedron::Triangulation_2() {
+            // Backup dei dati di Classe 1
+            vector<vertex> vertices_class1 = vertices;
+        
+            vector<Face> faces_class1 = faces;
+            
+            vector<Edge> edges_class1 = edges;
 
-    vertex shared01, shared12, shared02;
-    if (v_1.end != v_0.end) {
-        if (v_1.end == v_0.origin || v_1.origin == v_0.origin)
-            shared01 = v_0.origin;
-        else if (v_0.end == v_1.origin)
-            shared01 = v_0.end;
-    } else {
-        shared01 = v_0.end;
-    }
-
-    if (v_2.end != v_1.end) {
-        if (v_2.end == v_1.origin || v_2.origin == v_1.origin)
-            shared12 = v_1.origin;
-        else if (v_1.end == v_2.origin)
-            shared12 = v_1.end;
-    } else {
-        shared12 = v_1.end;
-    }
-
-    if (v_2.end != v_0.end) {
-        if (v_2.end == v_0.origin || v_2.origin == v_0.origin)
-            shared02 = v_0.origin;
-        else if (v_0.end == v_2.origin)
-            shared02 = v_0.end;
-    } else {
-        shared02 = v_0.end;
-    }
-    vertex center = vertex(
-        0.5 * (v_2.origin.x + v_2.end.x),
-        0.5 * (v_2.origin.y + v_2.end.y),
-        0.5 * (v_2.origin.z + v_2.end.z),
-        cv++
-    );
-    vertex apex = vertex(
-        (shared01.x - center.x) * heightRatio + center.x,
-        (shared01.y - center.y) * heightRatio + center.y,
-        (shared01.z - center.z) * heightRatio + center.z,
-        cv++
-    );
-    vertex midEdge0 = vertex(
-        0.5 * (v_0.origin.x + v_0.end.x),
-        0.5 * (v_0.origin.y + v_0.end.y),
-        0.5 * (v_0.origin.z + v_0.end.z),
-        cv++
-    );
-    vertex midEdge1 = vertex(
-        0.5 * (v_1.origin.x + v_1.end.x),
-        0.5 * (v_1.origin.y + v_1.end.y),
-        0.5 * (v_1.origin.z + v_1.end.z),
-        cv++
-    );
-	 vertices.insert(vertices.end(), {center, apex, midEdge0, midEdge1, shared02, shared12, shared01});
-
- if(code==0){
-
-    Edge edge_midEdge0_to_shared02(midEdge0, shared02, ce++);
-	Edge edge_shared02_to_apex(shared02, apex, ce++);
-	Edge edge_apex_to_midEdge0(apex, midEdge0, ce++);
-	Edge edge_shared01_to_midEdge0(shared01, midEdge0, ce++);
-	Edge edge_apex_to_shared01(apex, shared01, ce++);
-	Edge edge_shared01_to_midEdge1(shared01, midEdge1, ce++);
-	Edge edge_midEdge1_to_apex(midEdge1, apex, ce++);
-    Edge edge_apex_to_shared12(apex, shared12, ce++);
-    Edge edge_midEdge1_to_shared12(midEdge1, shared12, ce++);
-    Face face2({midEdge0, shared02, apex}, {edge_midEdge0_to_shared02, edge_shared02_to_apex, edge_apex_to_midEdge0}, cf++, 0);
-    Face face3({shared01, midEdge0, apex}, {edge_shared01_to_midEdge0, reverseEdge(edge_apex_to_midEdge0), edge_apex_to_shared01}, cf++, 0);
-    Face face4({shared01, midEdge1, apex}, {edge_shared01_to_midEdge1, edge_midEdge1_to_apex, edge_apex_to_shared01}, cf++, 0);
-    Face face5({midEdge1, apex, shared12}, {edge_midEdge1_to_apex, edge_apex_to_shared12, reverseEdge(edge_midEdge1_to_shared12)}, cf++, 0);
-	fill.insert(fill.end(),{face2,face3,face4,face5});
-	    _Triangle[k][j]=apex;
-}
-	if(code==11){
-	Edge edge_center_to_apex(center, apex, ce++);
-    Edge edge_apex_to_shared01(apex, shared01, ce++);
-    Edge edge_apex_to_midEdge0(apex, midEdge0, ce++);
-    Edge edge_apex_to_shared12(apex, shared12, ce++);
-    Edge edge_midEdge1_to_apex(midEdge1, apex, ce++);
-    Edge edge_shared02_to_apex(shared02, apex, ce++);
-    Edge edge_shared01_to_midEdge0(shared01, midEdge0, ce++);
-    Edge edge_midEdge0_to_shared02(midEdge0, shared02, ce++);
-    Edge edge_shared01_to_midEdge1(shared01, midEdge1, ce++);
-    Edge edge_midEdge1_to_shared12(midEdge1, shared12, ce++);
-    Edge edge_shared12_to_center(shared12, center, ce++);
-    Edge edge_shared02_to_center(shared02, center, ce++);
-    edges.insert(edges.end(), {
-        edge_center_to_apex, edge_apex_to_shared01, edge_apex_to_midEdge0,
-        edge_apex_to_shared12, edge_midEdge1_to_apex, edge_shared02_to_apex,
-        edge_shared01_to_midEdge0, edge_midEdge0_to_shared02,
-        edge_shared01_to_midEdge1, edge_midEdge1_to_shared12,
-        edge_shared12_to_center, edge_shared02_to_center
-    });
-    Face face2({midEdge0, shared02, apex}, {edge_midEdge0_to_shared02, edge_shared02_to_apex, edge_apex_to_midEdge0}, cf++, 0);
-    Face face3({shared01, midEdge0, apex}, {edge_shared01_to_midEdge0, reverseEdge(edge_apex_to_midEdge0), edge_apex_to_shared01}, cf++, 0);
-     fill.insert(fill.end(), {face2, face3});
-         _Triangle[k][j]=apex;
-	}
-	if(code==13){
-	
-    Edge edge_apex_to_shared01(apex, shared01, ce++);
-    Edge edge_apex_to_shared12(apex, shared12, ce++);
-    Edge edge_shared02_to_apex(shared02, apex, ce++);
-    edges.insert(edges.end(), {
-		edge_apex_to_shared01,edge_apex_to_shared12,edge_shared02_to_apex
-    });
-        _Triangle[k][j]=apex;
-	}
-	if(code==12){	
-	Edge edge_center_to_apex(center, apex, ce++);
-    Edge edge_apex_to_shared01(apex, shared01, ce++);
-    Edge edge_apex_to_midEdge0(apex, midEdge0, ce++);
-    Edge edge_apex_to_shared12(apex, shared12, ce++);
-    Edge edge_midEdge1_to_apex(midEdge1, apex, ce++);
-    Edge edge_shared02_to_apex(shared02, apex, ce++);
-    Edge edge_shared01_to_midEdge0(shared01, midEdge0, ce++);
-    Edge edge_midEdge0_to_shared02(midEdge0, shared02, ce++);
-    Edge edge_shared01_to_midEdge1(shared01, midEdge1, ce++);
-    Edge edge_midEdge1_to_shared12(midEdge1, shared12, ce++);
-    Edge edge_shared12_to_center(shared12, center, ce++);
-    Edge edge_shared02_to_center(shared02, center, ce++);
-    edges.insert(edges.end(), {
-        edge_center_to_apex, edge_apex_to_shared01, edge_apex_to_midEdge0,
-        edge_apex_to_shared12, edge_midEdge1_to_apex, edge_shared02_to_apex,
-        edge_shared01_to_midEdge0, edge_midEdge0_to_shared02,
-        edge_shared01_to_midEdge1, edge_midEdge1_to_shared12,
-        edge_shared12_to_center, edge_shared02_to_center
-    });
-    Face face4({shared01, midEdge1, apex}, {edge_shared01_to_midEdge1, edge_midEdge1_to_apex, edge_apex_to_shared01}, cf++, 0);
-    Face face5({midEdge1, apex, shared12}, {edge_midEdge1_to_apex, edge_apex_to_shared12, reverseEdge(edge_midEdge1_to_shared12)}, cf++, 0);
-     fill.insert(fill.end(), {face4, face5});
-	     _Triangle[k][j]=apex; 	
-	}
-	if(code==21){
-	Edge edge_center_to_apex(center, apex, ce++);
-    Edge edge_apex_to_shared01(apex, shared01, ce++);
-    Edge edge_apex_to_midEdge0(apex, midEdge0, ce++);
-    Edge edge_apex_to_shared12(apex, shared12, ce++);
-    Edge edge_shared02_to_apex(shared02, apex, ce++);
-    Edge edge_shared01_to_midEdge0(shared01, midEdge0, ce++);
-    Edge edge_midEdge0_to_shared02(midEdge0, shared02, ce++);
-    Edge edge_shared12_to_center(shared12, center, ce++);
-    Edge edge_shared02_to_center(shared02, center, ce++);
-    edges.insert(edges.end(), {
-edge_center_to_apex,edge_apex_to_shared01,edge_apex_to_midEdge0,
-edge_apex_to_shared12,edge_shared02_to_apex,edge_shared01_to_midEdge0,
-edge_midEdge0_to_shared02,edge_shared12_to_center,edge_shared02_to_center
-    });
-    Face face0({center, shared12, apex}, {edge_apex_to_shared12, edge_shared12_to_center, edge_center_to_apex}, cf++, 0);
-    printFace(face0);
-    Face face1({shared02, center, apex}, {edge_shared02_to_center, edge_center_to_apex, edge_shared02_to_apex}, cf++, 0);
-    Face face2({midEdge0, shared02, apex}, {edge_midEdge0_to_shared02, edge_shared02_to_apex, edge_apex_to_midEdge0}, cf++, 0);
-    Face face3({shared01, midEdge0, apex}, {edge_shared01_to_midEdge0, reverseEdge(edge_apex_to_midEdge0), edge_apex_to_shared01}, cf++, 0);
-    fill.insert(fill.end(), {face0, face1, face2, face3});
-        _Triangle[k][j]=apex;
-	}
-	if(code==22){
-	    Edge edge_center_to_apex(center, apex, ce++);
-    Edge edge_apex_to_shared01(apex, shared01, ce++);
-    Edge edge_apex_to_shared12(apex, shared12, ce++);
-    Edge edge_midEdge1_to_apex(midEdge1, apex, ce++);
-    Edge edge_shared02_to_apex(shared02, apex, ce++);
-    Edge edge_midEdge0_to_shared02(midEdge0, shared02, ce++);
-    Edge edge_shared01_to_midEdge1(shared01, midEdge1, ce++);
-    Edge edge_midEdge1_to_shared12(midEdge1, shared12, ce++);
-    Edge edge_shared12_to_center(shared12, center, ce++);
-    Edge edge_shared02_to_center(shared02, center, ce++);
-    edges.insert(edges.end(), {
-    edge_apex_to_shared01,edge_apex_to_shared01,edge_apex_to_shared12
-    ,edge_midEdge1_to_apex	,edge_shared02_to_apex	,edge_midEdge0_to_shared02 	
-    ,edge_shared01_to_midEdge1	,edge_midEdge1_to_shared12,edge_shared12_to_center,edge_shared02_to_center
-    });
-    Face face0({center, shared12, apex}, {edge_apex_to_shared12, edge_shared12_to_center, edge_center_to_apex}, cf++, 0);
-    printFace(face0);
-    Face face1({shared02, center, apex}, {edge_shared02_to_center, edge_center_to_apex, edge_shared02_to_apex}, cf++, 0);
-    Face face4({shared01, midEdge1, apex}, {edge_shared01_to_midEdge1, edge_midEdge1_to_apex, edge_apex_to_shared01}, cf++, 0);
-    Face face5({midEdge1, apex, shared12}, {edge_midEdge1_to_apex, edge_apex_to_shared12, reverseEdge(edge_midEdge1_to_shared12)}, cf++, 0);
-    fill.insert(fill.end(), {face0, face1,face4,face5});
-        _Triangle[k][j]=apex;
-	}
-	if(code==23){
-	Edge edge_center_to_apex(center, apex, ce++);
-    Edge edge_apex_to_shared01(apex, shared01, ce++);
-    Edge edge_apex_to_shared12(apex, shared12, ce++);
-    Edge edge_shared02_to_apex(shared02, apex, ce++);
-    Edge edge_shared12_to_center(shared12, center, ce++);
-    Edge edge_shared02_to_center(shared02, center, ce++);
-    edges.insert(edges.end(), {
-    	edge_center_to_apex,
-    	edge_apex_to_shared01,
-    	edge_apex_to_shared12,
-    	edge_shared02_to_apex,
-		edge_shared12_to_center
-		,edge_shared02_to_center
-    });
-    Face face0({center, shared12, apex}, {edge_apex_to_shared12, edge_shared12_to_center, edge_center_to_apex}, cf++, 0);
-    Face face1({shared02, center, apex}, {edge_shared02_to_center, edge_center_to_apex, edge_shared02_to_apex}, cf++, 0);
-    fill.insert(fill.end(), {face0, face1});
-        _Triangle[k][j]=apex;
-	}
-	if(code==14){
-    Edge edge_apex_to_shared01(apex, shared01, ce++);
-    Edge edge_apex_to_shared12(apex, shared12, ce++);
-    Edge edge_shared02_to_apex(shared02, apex, ce++);
-    edges.insert(edges.end(), {
-	edge_apex_to_shared01,
-	edge_apex_to_shared12,
-	edge_shared02_to_apex});
-	_TriangleI[k][j]=apex;
-	
-	}
-}
-
-
-                            
-void _Polyhedron::Assembler(
-					//	map<size_t, map<size_t,vertex>>& Triangle,
-					//	map<size_t, map<size_t,vertex>>& TC,
-						map<size_t,vector<vertex>>& Triangle,
-					    map<size_t, map<size_t,vertex>>& TC,
-						map<size_t, map<size_t,vertex>>& TCII,
-						size_t k, 
-						size_t j , 
-						unsigned int code,
-						vector<Face>& fill,
-						vector<Edge>& edges,
-						unsigned int& cf,
-						unsigned int& ce)
-		{
-		
-		if(code==0){
-			Edge e0(TC[k][j], TC[k+1][j+1], ce++);
-			Edge e1(TC[k+1][j+1], Triangle[k][j], ce++ );
-			Edge e2(TC[k+1][j+1], Triangle[k][j+1], ce++);
-			Edge e3(TC[k][j], Triangle[k][j], ce++);
-			Edge e4(TC[k][j], Triangle[k][j+1], ce++);
-			add_unique_edge(edges,e0);
-			add_unique_edge(edges,e1);
-			add_unique_edge(edges,e2);
-			add_unique_edge(edges,e3);
-			add_unique_edge(edges,e4);
-			Face f0({TC[k][j], TC[k+1][j+1], Triangle[k][j+1]}, {e0,e2,reverseEdge(e4)}, cf++,0);
-			Face f1({TC[k][j], TC[k+1][j+1],Triangle[k][j]} , {e0,e1,reverseEdge(e3)}, cf++,0);
-			fill.push_back(f0);
-			fill.push_back(f1);
-			}				
-		if(code==11){
-			Edge e0 (TCII[k][j+1],Triangle[k][j],ce++);
-			Edge e1 (Triangle[k][j],TC[k][j],ce++);
-			Edge e2 (TC[k][j], TCII[k][j+1],ce++);
-			
-			Edge e3 (TCII[k+1][j+1],TC[k][j],ce++);
-			Edge e4 (TC[k][j],Triangle[k][j+1],ce++);
-			Edge e5 (Triangle[k][j+1],TCII[k+1][j+1],ce++);
-			
-			Face f0({TCII[k][j+1],Triangle[k][j],TC[k][j]},{e0,e1,e2},cf++,0);
-			Face f1({TCII[k+1][j+1],TC[k][j],Triangle[k][j+1]},{e3,e4,e5},cf++,0);
-			
-			add_unique_edge(edges,e0);
-			add_unique_edge(edges,e1);
-			add_unique_edge(edges,e2);
-			add_unique_edge(edges,e3);
-			add_unique_edge(edges,e4);			
-			add_unique_edge(edges,e5);				
-			fill.push_back(f0);fill.push_back(f1);
-		}
-		if(code==12){
-			Edge e0 (TCII[k][j],Triangle[k][j],ce++);
-			Edge e1 (Triangle[k][j],TC[k][j],ce++);
-			Edge e2 (TC[k][j], TCII[k][j],ce++);
-	
-			Edge e3 (TCII[k+1][j],TC[k][j],ce++);
-			Edge e4 (TC[k][j],Triangle[k][j+1],ce++);
-			Edge e5 (Triangle[k][j+1],TCII[k+1][j],ce++);
-
-			add_unique_edge(edges,e0);
-			add_unique_edge(edges,e1);
-			add_unique_edge(edges,e2);
-			add_unique_edge(edges,e3);
-			add_unique_edge(edges,e4);			
-			add_unique_edge(edges,e5);
-			
-			Face f0({TCII[k][j],Triangle[k][j],TC[k][j]},{e0,e1,e2},cf++,0);
-			Face f1({TCII[k+1][j],TC[k][j],Triangle[k][j+1]},{e3,e4,e5},cf++,0);
-			fill.push_back(f0);fill.push_back(f1);
-		}		
-		if(code==13){
-			Edge e0(TCII[k][j],TC[k][j],ce++);
-			Edge e1(TC[k][j],Triangle[k][j],ce++);
-			Edge e2(Triangle[k][j],TCII[k][j],ce++);
-			Face f0({TCII[k][j],TC[k][j],Triangle[k][j]},{e0,e1,e2},cf++,0);
-			
-			Edge e3(TC[k][j],TCII[k+1][j+1],ce++);
-			Edge e4(TCII[k+1][j+1],Triangle[k][j],ce++);
-			Edge e5(Triangle[k][j],TC[k][j],ce++);
-			Face f1({TC[k][j],TCII[k+1][j+1],Triangle[k][j]},{e3,e4,e5},cf++,0);
-			
-			Edge e6(TC[k][j],TCII[k+1][j+1],ce++);
-			Edge e7(TCII[k+1][j+1],Triangle[k][j+1],ce++);
-			Edge e8(Triangle[k][j+1],TC[k][j],ce++);
-			Face f2({TC[k][j],TCII[k+1][j+1],Triangle[k][j+1]},{e6,e7,e8},cf++,0);
-			
-			Edge e9(TC[k][j],Triangle[k][j+1],ce++);
-			Edge e10(Triangle[k][j+1],TCII[k][j+1],ce++);
-			Edge e11(TCII[k][j+1],TC[k][j],ce++);
-			Face f3({TC[k][j],Triangle[k][j+1],TCII[k][j+1]},{e9,e10,e11},cf++,0);
-
-			add_unique_edge(edges,e0);
-			add_unique_edge(edges,e1);
-			add_unique_edge(edges,e2);
-			add_unique_edge(edges,e3);
-			add_unique_edge(edges,e4);			
-			add_unique_edge(edges,e5);
-			add_unique_edge(edges,e6);
-			add_unique_edge(edges,e7);
-			add_unique_edge(edges,e8);
-			add_unique_edge(edges,e9);
-			add_unique_edge(edges,e10);			
-			add_unique_edge(edges,e11);
-			fill.push_back(f0);	fill.push_back(f1);fill.push_back(f2);fill.push_back(f3);
-		}
-		if(code==21){
-			Edge e0(TCII[k][j+1],TC[k][j],ce++);
-			Edge e1(TC[k][j],Triangle[k][j+1],ce++);
-			Edge e2(Triangle[k][j+1],TCII[k][j+1],ce++);
-			Face f0({TCII[k][j+1],TC[k][j],Triangle[k][j+1]},{e0,e1,e2},cf++,0);
-			Edge e3(Triangle[k-1][j],TC[k][j],ce++);
-			Edge e4(TC[k][j],TCII[k][j+1],ce++);
-			Edge e5(TCII[k][j+1],Triangle[k-1][j]);
-			Face f1({Triangle[k-1][j],TC[k][j],TCII[k][j+1]},{e3,e4,e5},cf++,0);
-			add_unique_edge(edges,e0);
-			add_unique_edge(edges,e1);
-			add_unique_edge(edges,e2);
-			add_unique_edge(edges,e3);
-			add_unique_edge(edges,e4);			
-			add_unique_edge(edges,e5);	
-			fill.push_back(f0);fill.push_back(f1);
-			
-		}
-		if(code==22){
-			Edge e0(TC[k][j],TCII[k][j+1],ce++);
-			Edge e1(TCII[k][j+1],Triangle[k-1][j],ce++);
-			Edge e2(Triangle[k-1][j],TC[k][j],ce++);
-			Face f0({TC[k][j],TCII[k][j+1],Triangle[k-1][j]},{e0,e1,e2},cf++,0);
-			
-			
-			Edge e3(TC[k][j],TCII[k][j+1],ce++);
-			Edge e4(TCII[k][j+1],Triangle[k][j+1],ce++);
-			Edge e5(Triangle[k][j+1],TC[k][j],ce++);
-			Face f1({TC[k][j],TCII[k][j+1],Triangle[k][j+1]},{e3,e4,e5},cf++,0);
-				
-			
-			Edge e6(TC[k][j],TCII[k-1][j],ce++);
-			Edge e7(TCII[k-1][j],Triangle[k-1][j],ce++);
-			Edge e8(Triangle[k-1][j],TC[k][j],ce++);
-			Face f2({TC[k][j],TCII[k-1][j],Triangle[k-1][j]},{e6,e7,e8},cf++,0);	
-	
-			
-			Edge e9(TC[k][j],TCII[k][j],ce++);
-			Edge e10(TCII[k][j],Triangle[k][j],ce++);
-			Edge e11(Triangle[k][j],TC[k][j],ce++);
-			Face f3({TC[k][j],TCII[k][j],Triangle[k][j]},{e9,e10,e11},cf++,0);
-
-			add_unique_edge(edges,e0);
-			add_unique_edge(edges,e1);
-			add_unique_edge(edges,e2);
-			add_unique_edge(edges,e3);
-			add_unique_edge(edges,e4);			
-			add_unique_edge(edges,e5);
-			add_unique_edge(edges,e6);
-			add_unique_edge(edges,e7);
-			add_unique_edge(edges,e8);
-			add_unique_edge(edges,e9);
-			add_unique_edge(edges,e10);			
-			add_unique_edge(edges,e11);	
-			fill.push_back(f0);fill.push_back(f1);fill.push_back(f2);fill.push_back(f3);
-		
-		}
-		if(code==23){
-			Edge e0(TC[k][j],TCII[k][j],ce++);
-			Edge e1(TCII[k][j],Triangle[k-1][j],ce++);
-			Edge e2(Triangle[k-1][j],TC[k][j],ce++);
-			Face f0({TC[k][j],TCII[k][j],Triangle[k-1][j]},{e0,e1,e2},cf++,0);
-			
-			Edge e3(TC[k][j],TCII[k][j],ce++);
-			Edge e4(TCII[k][j],Triangle[k][j],ce++);
-			Edge e5(Triangle[k][j],TC[k][j],ce++);
-			Face f1({TC[k][j],TCII[k][j],Triangle[k][j]},{e3,e4,e5},cf++,0);
-			add_unique_edge(edges,e0);
-			add_unique_edge(edges,e1);
-			add_unique_edge(edges,e2);
-			add_unique_edge(edges,e3);
-			add_unique_edge(edges,e4);			
-			add_unique_edge(edges,e5);
-			fill.push_back(f0); fill.push_back(f1);
-				
-		}
-		}
-    void _Polyhedron::Triangulation_2() {
-    vector<Edge> edges_1;
-    vector<Face> faces_1;
-    vector<vertex> ver_1;
-    vector<vertex> ver_2;
-	vector<Face> faces_2;
-	vector<Edge> edges_2;	
-	unsigned int id_f1=0;
-	unsigned int id_v1=0;
-	unsigned int id_e1=0;	
-        if (p == 3) {
-            unsigned int T = b * b + c * b + c * c;
-            switch (q) {
-                case 3:
-                    NumVer = 2 * T + 2; NumEdg = 6 * T; NumFcs = 4 * T;
-                    break;
-                case 4:
-                    NumVer = 4 * T + 2; NumEdg = 12 * T; NumFcs = 8 * T;
-                    break;
-                case 5:
-                    NumVer = 10 * T; NumEdg = 30 * T; NumFcs = 20 * T;
-                    break;
+            // Contenitori per Classe 2
+            vector<vertex> ver_2;
+            vector<Face> faces_2;
+            vector<Edge> edges_2;
+            
+            // Mappa per evitare duplicati nei nuovi vertici di Classe 2
+            map<tuple<double, double, double>, unsigned int> vertex_map_2;
+            unsigned int next_id_2 = 0;
+            vector<vertex> centroidi;
+            //Inserisco i vertici  della Classe 1 in Classe 2
+            for (const vertex& v : vertices_class1){
+                tuple<double, double, double> key(v.x, v.y, v.z);
+                if (!vertex_map_2.count(key)) {
+                    vertex new_v = v;
+                    new_v.id = next_id_2++;
+                    vertex_map_2[key] = new_v.id;
+                    ver_2.push_back(new_v);
+                }
+                
             }
-            faces_1.reserve(NumFcs);
-            edges_1.reserve(NumEdg);
-            edges.reserve(NumEdg);
-            vertices.reserve(NumVer);
-            ver_1.reserve(NumVer);
-            ver_2.reserve(NumVer);
-            edges_2.reserve(NumEdg);
-            faces_2.reserve(NumFcs);
-            unsigned int id_edge = 0;
-            unsigned int id_faces = 0;
-            size_t j=0;
-            vertex v;
-            vertex v1;
-            map<size_t, map<size_t,vertex>> _Triangle_;
-            vector<size_t> index_edges(3);
-            size_t cv = 0;
-        	if(b==0){
-        		b=c;
-			}else{
-				c=b;
-			}					
-  			for (size_t i = 0; i < faces.size(); i++) {
-  			map<size_t, vector<vertex>> Triangle;
-  			map<size_t, map<size_t,vertex>> Triangle_ClassII;
-            map<size_t, map<size_t,vertex>> Triangle_ClassII_I;
-               for (size_t k = 0; k < b ; k++) {
-                    Triangle[k].resize(k + 2);
-                    
-					vertex v0;
-					vertex v_origin;				  		
-			if (faces[i].edges[1].end != faces[i].edges[0].end) 
-			{
-    		if (faces[i].edges[1].end == faces[i].edges[0].origin) {
-        	v = faces[i].edges[0].origin;
-        	v0 = vertex(
-            (faces[i].edges[0].end.x - faces[i].edges[0].origin.x) * (k + 1) / float(b) + faces[i].edges[0].origin.x,
-            (faces[i].edges[0].end.y - faces[i].edges[0].origin.y) * (k + 1) / double(b) + faces[i].edges[0].origin.y,
-            (faces[i].edges[0].end.z - faces[i].edges[0].origin.z) * (k + 1) / double(b) + faces[i].edges[0].origin.z,
-            cv++
-        	)	;
-        	v1 = vertex(
-            (faces[i].edges[1].end.x - faces[i].edges[1].origin.x) * (b - k - 1) / double(b) + faces[i].edges[1].origin.x,
-            (faces[i].edges[1].end.y - faces[i].edges[1].origin.y) * (b - k - 1) / double(b) + faces[i].edges[1].origin.y,
-            (faces[i].edges[1].end.z - faces[i].edges[1].origin.z) * (b - k - 1) / double(b) + faces[i].edges[1].origin.z,
-            cv++
-        	);
-    		} else if (faces[i].edges[1].origin == faces[i].edges[0].origin) {
-        	v = faces[i].edges[0].origin;
-        	v0 = vertex(
-            (faces[i].edges[0].end.x - faces[i].edges[0].origin.x) * (k + 1) / float(b) + faces[i].edges[0].origin.x,
-            (faces[i].edges[0].end.y - faces[i].edges[0].origin.y) * (k + 1) / double(b) + faces[i].edges[0].origin.y,
-            (faces[i].edges[0].end.z - faces[i].edges[0].origin.z) * (k + 1) / double(b) + faces[i].edges[0].origin.z,
-            cv++
-        	);
-        	v1 = vertex(
-            (faces[i].edges[1].end.x - faces[i].edges[1].origin.x) * (k + 1) / double(b) + faces[i].edges[1].origin.x,
-            (faces[i].edges[1].end.y - faces[i].edges[1].origin.y) * (k + 1) / double(b) + faces[i].edges[1].origin.y,
-            (faces[i].edges[1].end.z - faces[i].edges[1].origin.z) * (k + 1) / double(b) + faces[i].edges[1].origin.z,
-            cv++
-        	);
-    		} else if (faces[i].edges[0].end == faces[i].edges[1].origin) {
-        	v = faces[i].edges[0].end;
-        	v0 = vertex(
-            (faces[i].edges[0].end.x - faces[i].edges[0].origin.x) * (b - k - 1) / float(b) + faces[i].edges[0].origin.x,
-            (faces[i].edges[0].end.y - faces[i].edges[0].origin.y) * (b - k - 1) / double(b) + faces[i].edges[0].origin.y,
-            (faces[i].edges[0].end.z - faces[i].edges[0].origin.z) * (b - k - 1) / double(b) + faces[i].edges[0].origin.z,
-            cv++
-        	);
-     	  	v1 = vertex(
-            (faces[i].edges[1].end.x - faces[i].edges[1].origin.x) * (k + 1) / double(b) + faces[i].edges[1].origin.x,
-            (faces[i].edges[1].end.y - faces[i].edges[1].origin.y) * (k + 1) / double(b) + faces[i].edges[1].origin.y,
-            (faces[i].edges[1].end.z - faces[i].edges[1].origin.z) * (k + 1) / double(b) + faces[i].edges[1].origin.z,
-            cv++
-        	);
-    		}
-			}
-			else if (faces[i].edges[0].end == faces[i].edges[1].end)
-			{
-    		v = faces[i].edges[0].end;
-    		v0 = vertex(
-        	(faces[i].edges[0].end.x - faces[i].edges[0].origin.x) * (b - k - 1) / double(b) + faces[i].edges[0].origin.x,
-        	(faces[i].edges[0].end.y - faces[i].edges[0].origin.y) * (b - k - 1) / double(b) + faces[i].edges[0].origin.y,
-        	(faces[i].edges[0].end.z - faces[i].edges[0].origin.z) * (b - k - 1) / double(b) + faces[i].edges[0].origin.z,
-        	cv++
-    		);
-    		v1 = vertex(
-        	(faces[i].edges[1].end.x - faces[i].edges[1].origin.x) * (b - k - 1) / double(b) + faces[i].edges[1].origin.x,
-        	(faces[i].edges[1].end.y - faces[i].edges[1].origin.y) * (b - k - 1) / double(b) + faces[i].edges[1].origin.y,
-        	(faces[i].edges[1].end.z - faces[i].edges[1].origin.z) * (b - k - 1) / double(b) + faces[i].edges[1].origin.z,
-        	cv++
-    		);	
-			}
-            Triangle[k][0] = v0;
-            Triangle[k][k+1] = v1;
-                for (size_t j = 0; j < k; j++) {				
-                double t = double(j+1)/(k + 1);
-					vertex v2(
-    				v0.x + t * (v1.x - v0.x),
- 				   	v0.y + t * (v1.y - v0.y),
-    				v0.z + t * (v1.z - v0.z),
-    				cv++
-				);
-                Triangle[k][j+1] = v2; 
-                }          
-                if (k > 0) {
-                    for (j = 0; j < k + 1 ; j++) {   
-                         if (j + 1 >= Triangle[k].size() || j >= Triangle[k - 1].size()) continue;
-						    Edge e1(Triangle[k][j], Triangle[k][j + 1], id_edge++);	
-							Edge e2(Triangle[k][j + 1], Triangle[k - 1][j], id_edge++);
-                            Edge e0(Triangle[k - 1][j], Triangle[k][j], id_edge++);
-                            vector<Edge> _e = {e0, e1, e2};
-                            vector<vertex> ver = {Triangle[k - 1][j], Triangle[k][j], Triangle[k][j + 1]};
-                            if(j>0){		
-							vector<vertex> hidden = {Triangle[k - 1][j], Triangle[k-1][j-1], Triangle[k][j]};
-						    Edge _e1(Triangle[k][j], Triangle[k - 1][j-1], -1);
-							Edge _e2(Triangle[k-1][j-1], Triangle[k-1][j], -1);
-                            vector<Edge> _e = {e0,_e2,_e1};
-                            Face fb_1(hidden, _e, id_faces++, 0);
-                            faces_1.push_back(fb_1);
-                            First_Triangulation(ver_2,edges_2,fb_1,id_v1,id_e1,id_f1,faces_2,14,k,j,Triangle_ClassII, Triangle_ClassII_I);
-						    }
-						    Face fb(ver, _e, id_faces++, 0);
-                            faces_1.push_back(fb);
-							if(k<b-1){
-									if(j==0){
-								First_Triangulation(ver_2,edges_2,fb,id_v1,id_e1,id_f1,faces_2,11,k,j,Triangle_ClassII, Triangle_ClassII_I);										
-									}else if(j>0 && j<k){
-								First_Triangulation(ver_2,edges_2,fb,id_v1,id_e1,id_f1,faces_2,12,k,j,Triangle_ClassII, Triangle_ClassII_I);										
-									}else if(j==k){
-								First_Triangulation(ver_2,edges_2,fb,id_v1,id_e1,id_f1,faces_2,13,k,j,Triangle_ClassII, Triangle_ClassII_I);										
-									}			
-							}
-							if(k==b-1){
-									if(j==0){
-								First_Triangulation(ver_2,edges_2,fb,id_v1,id_e1,id_f1,faces_2,21,k,j,Triangle_ClassII, Triangle_ClassII_I);										
-									}else if(j>0 && j<k){
-								First_Triangulation(ver_2,edges_2,fb,id_v1,id_e1,id_f1,faces_2,23,k,j,Triangle_ClassII, Triangle_ClassII_I);										
-									}else if(j==k){
-								First_Triangulation(ver_2,edges_2,fb,id_v1,id_e1,id_f1,faces_2,22,k,j,Triangle_ClassII, Triangle_ClassII_I);										
-									}								
-							}	
-                            edges_1.push_back(e1); 
-							edges_1.push_back(e2);
-							edges_1.push_back(e0);
-                            ver_1.push_back(Triangle[k - 1][j]);
-                            ver_1.push_back(Triangle[k][j]);
-                            ver_1.push_back(Triangle[k][j + 1]);
+
+            //Calcolo i baricentri delle facce della Classe 1
+            for (const Face& faccia : faces_class1){
+                const vertex& v1 = faccia.vertices[0];
+                const vertex& v2 = faccia.vertices[1];
+                const vertex& v3 = faccia.vertices[2];
+
+                double centroid_x = (v1.x + v2.x + v3.x) / 3.0;
+                double centroid_y = (v1.y + v2.y + v3.y) / 3.0;
+                double centroid_z = (v1.z + v2.z + v3.z) / 3.0;
+                vertex centroide(centroid_x,centroid_y,centroid_z, 0);
+                tuple<double, double, double> key(centroid_x, centroid_y, centroid_z);
+                
+                if (vertex_map_2.count(key)){
+                    centroide.id = vertex_map_2[key];
+                }else{
+                    centroide.id = next_id_2++;
+                    vertex_map_2[key] = centroide.id;
+                    ver_2.push_back(centroide);
+                }
+            
+                // Aggiungo il baricentro come nuovo vertice
+                centroidi.push_back(centroide);
+            }
+            
+            //collego i baricentri ai vertici della Classe 1
+            
+            unsigned int id_edge_2 = 0;
+            unsigned int id_face_2 = 0;
+            for (size_t i=0; i < faces_class1.size();i++){
+                const Face& faccia = faces_class1[i]; // prendo la faccia corrente
+                const vertex& v1 = faccia.vertices[0]; //Estraggo i tre vertici della faccia triangolare
+                const vertex& v2 = faccia.vertices[1];
+                const vertex& v3 = faccia.vertices[2];
+                const vertex& centroide = centroidi[i]; // prendo il baricentro della faccia corrente
+                
+                //Creo i 3 spigoli
+                Edge e1(v1, centroide, id_edge_2++, 0);
+                Edge e2(v2, centroide, id_edge_2++, 0);
+                Edge e3(v3, centroide, id_edge_2++, 0);
+                // Aggiungo gli spigoli alla Classe 2
+                add_unique_edge(edges_2, e1);
+                add_unique_edge(edges_2, e2);
+                add_unique_edge(edges_2, e3);
+
+            }
+            
+            map<unsigned int, vector<size_t>> edge_to_faces;
+
+            // Per ogni faccia originale, associa i lati
+            for (size_t id_face = 0; id_face < faces_original.size(); ++id_face) {
+                const Face& face = faces_class1[id_face];
+
+                // Considera ogni coppia di vertici della faccia
+                for (size_t i = 0; i < face.vertices.size(); ++i) {
+                    for (size_t j = i + 1; j < face.vertices.size(); ++j) {
+                        unsigned int id1 = face.vertices[i].id;
+                        unsigned int id2 = face.vertices[j].id;
+
+                        // Trova l’edge nella triangolazione che collega questi vertici
+                        for (const Edge& e : edges_class1) {
+                            if ((e.origin.id == id1 && e.end.id == id2) ||
+                                (e.origin.id == id2 && e.end.id == id1)) {
+                                edge_to_faces[e.id].push_back(id_face);
+                                break;
+                            }
                         }
-                    } 
-					else if(k==0) {
-                    	vertex c;
-                        Edge e0(v, v0, id_edge++);
-                        Edge e1(v0, v1, id_edge++);
-                        Edge e2(v1, v, id_edge++);
-                        vector<Edge> e = {e0, e1, e2};
-                        vector<vertex> ver = {v, v0, v1};
-                        Face fb(ver, e, id_faces++, 0);
-                        faces_1.push_back(fb);                    
-                        First_Triangulation(ver_2,edges_2,fb,id_v1,id_e1,id_f1,faces_2,22,k,j,Triangle_ClassII, Triangle_ClassII_I);
-                        edges_1.push_back(e0);
-                        edges_1.push_back(e1);
-                        edges_1.push_back(e2);
-                        ver_1.push_back(v);
-                        ver_1.push_back(v0);
-                        ver_1.push_back(v1);
                     }
                 }
-			for(size_t k=0; k<b; k++){
-				for(size_t j=0; j<k;j++){
-					if(k==0){
-						Assembler(Triangle,Triangle_ClassII,Triangle_ClassII_I,k,j,0,faces_2,edges_2,id_f1,id_e1);
-					}
-					if(k>0 && k<b-1){
-						if(j==0){
-							Assembler(Triangle,Triangle_ClassII,Triangle_ClassII_I,k,j,11,faces_2,edges_2,id_f1,id_e1);
-						}
-						if(j>0 && j<k){
-							Assembler(Triangle,Triangle_ClassII,Triangle_ClassII_I,k,j,13,faces_2,edges_2,id_f1,id_e1);
-						}
-						if(j==k){
-							Assembler(Triangle,Triangle_ClassII,Triangle_ClassII_I,k,j,12,faces_2,edges_2,id_f1,id_e1);
-						}
-					}
-					if(k==b-1 && k>0){
-						if(j==0){
-							Assembler(Triangle,Triangle_ClassII,Triangle_ClassII_I,k,j,21,faces_2,edges_2,id_f1,id_e1);
-						}
-						if(j>0 && j<k-1){
-							Assembler(Triangle,Triangle_ClassII,Triangle_ClassII_I,k,j,23,faces_2,edges_2,id_f1,id_e1);	
-						}
-						if(j==k-1){
-							Assembler(Triangle,Triangle_ClassII,Triangle_ClassII_I,k,j,22,faces_2,edges_2,id_f1,id_e1);
-						}
-					}
-				}
-			}		
-            }//loop faces.   
+            }
+        
+            for (const Edge& e : edges_class1) {
+                auto it = edge_to_faces.find(e.id);
+                if (it == edge_to_faces.end()) continue;
+
+                const auto& faces_list = it->second;
+
+                // **CASO 1: bordo della faccia del poliedro (solo 1 faccia)**
+                if (faces_list.size() == 1) {
+                    size_t face_id = faces_list[0];  // ID della faccia originale
+                    const vertex& baricentro = centroidi[face_id];
+
+                    // Calcolo del punto medio dello spigolo
+                    double mx = (e.origin.x + e.end.x) / 2.0;
+                    double my = (e.origin.y + e.end.y) / 2.0;
+                    double mz = (e.origin.z + e.end.z) / 2.0;
+                    vertex midpoint(mx, my, mz, 0);
+                    tuple<double,double,double> key(round6(mx), round6(my), round6(mz));
+                    
+                    if (vertex_map_2.count(key)) {
+                        midpoint.id = vertex_map_2[key];
+                    } else {
+                        midpoint.id = next_id_2++;
+                        vertex_map_2[key] = midpoint.id;
+                        ver_2.push_back(midpoint);
+
+                    }
+                    
+
+
+                    // Collego il baricentro al punto medio
+                    Edge eb(baricentro, midpoint, id_edge_2++, 0);
+                    add_unique_edge(edges_2, eb);
+
+                    //  Divido lo spigolo originario in due: origin–midpoint e midpoint–end
+                    Edge e1(midpoint, e.origin, id_edge_2++, 0);
+                    Edge e2(midpoint, e.end,    id_edge_2++, 0);
+                    Edge e3(e.origin, baricentro, id_edge_2++, 0) ;
+                    add_unique_edge(edges_2, e1);
+                    add_unique_edge(edges_2, e2);
+                    add_unique_edge(edges_2, e3);
+                    vector<vertex> vertici_faccia = {baricentro, midpoint, e.origin};
+                    vector<Edge> spigoli_faccia = {e1, e2, e3};
+                    faces_2.push_back(Face(vertici_faccia, spigoli_faccia, id_face_2++, 0));
+
+                }
+
+                // CASO 2: spigolo interno alla faccia del poliedro (2 facce)
+                else if (faces_list.size() == 2) {
+                    const vertex& b1 = centroidi[faces_list[0]];
+                    const vertex& b2 = centroidi[faces_list[1]];
+                    // Scelgo un vertice dello spigolo originale
+                    const vertex& v_orig = e.origin;
+
+                    //  Collego i due baricentri tra di loro
+                    Edge arco_baricentri(b1, b2, id_edge_2++, 0);
+                    add_unique_edge(edges_2, arco_baricentri);
+
+                    // Creo gli spigoli per la faccia
+                    Edge arco_baricentro1_vertice(b1, v_orig, id_edge_2++, 0);
+                    Edge arco_baricentro2_vertice(v_orig, b2, id_edge_2++, 0);
+                    add_unique_edge(edges_2, arco_baricentro1_vertice);
+                    add_unique_edge(edges_2, arco_baricentro2_vertice);
+                    // Creo la faccia triangolare: (b1, v_orig, b2)
+                    vector<vertex> vertici_face = {b1, v_orig, b2};
+                    vector<Edge> spigoli_face = {arco_baricentri, arco_baricentro1_vertice, arco_baricentro2_vertice};
+                    faces_2.push_back(Face(vertici_face, spigoli_face, id_face_2++, 0));
+
+                }
+
+            
+            }
+
+
+            faces = faces_2;        
+            vertices = ver_2;
+            edges = edges_2;
+
+
+        
         }
-    edges = edges_2;
-    faces = faces_2;
-    vertices = ver_2;
-        }
+
 	void _Polyhedron::OverAll_Triangulation(){
+            
 			if ((b == 0 && c > 0) || (b >0 && c == 0)) {
 				_Polyhedron::Triangulation();
 			}
 			else if(b>0 && c>0 && b==c){
+                _Polyhedron::Triangulation();
 				_Polyhedron::Triangulation_2();
 			}
+
+            for (auto& v : vertices) {
+                v.normalize(); // Porta ogni vertice sulla sfera di raggio 1
+            }
             for (size_t i = 0; i < vertices.size(); i++) {
             vertices[i].id = i;
             std::vector<Edge> unique_edges;
@@ -1087,10 +630,11 @@ void _Polyhedron::Assembler(
                     edge_set.insert(edge_pair);
                     unique_edges.push_back(e);
                 }
-}
+            }
 
-edges = unique_edges;
-		}	};
+    edges = unique_edges;
+		}	
+    };
 	void _Polyhedron::GenerateDual() {
     	map<unsigned int, vector<unsigned int>> M;  
     	map<unsigned int, vertex> centroid;    
@@ -1138,12 +682,12 @@ edges = unique_edges;
             }
         }
     }
-    for (const auto& e : dual_edges) {
+    /*for (const auto& e : dual_edges) {
         cout << "Edge " << e.id << ": (" << e.origin.x << ", " << e.origin.y << ", " << e.origin.z
              << ") -> (" << e.end.x << ", " << e.end.y << ", " << e.end.z
              << ") length: " << e.length() << "\n";
-    }
-	//bulk of the face.
+    }*/
+	//bulk delle facce.
 	map<unsigned int, vector<unsigned int>> vertex_to_faces;
 	for (const auto& face : faces) {
     for (const auto& v : face.vertices) {
@@ -1171,4 +715,3 @@ edges = unique_edges;
 	}	
 	
 	
-
