@@ -299,7 +299,7 @@ TEST(PolyhedronTest, TetrahedronClassIITriangulationExactFormula) {
 
     Tetrahedron tetra;
     _Polyhedron poly(tetra.faces, tetra.edge, tetra.vertices, b_val, c_val, p_val, q_val);
-    poly.Triangulation_2();
+    poly.OverAll_Triangulation;
 
     // Dati di partenza
     unsigned int numF = 4; // Facce del tetraedro
