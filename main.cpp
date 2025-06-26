@@ -42,12 +42,7 @@ int main() {
     pp.printFaces();  // Stampa facce generate (facoltativo)
     pp.GenerateDual(); // Genera duale (facoltativo)
     
-    // Mostra i vertici generati (per scegliere ID)
-    cout << "\nVertici generati:\n";
-    for (auto v : pp.vertices) {
-        cout << "ID: " << v.id
-             << " - (" << v.x << ", " << v.y << ", " << v.z << ")\n";
-    }
+    
 
     // Input ID vertici per il cammino minimo
     unsigned int id_start, id_end;
@@ -59,7 +54,7 @@ int main() {
     // Calcola cammino minimo
     vector<vertex> path = ShortestPath(pp.vertices, pp.edges, id_start, id_end);
 
-    if (!path.empty()) {
+    /*if (!path.empty()) {
         cout << "Cammino minimo trovato:\n";
         for (size_t i = 0; i < path.size(); i++) {
             cout << "ID: " << path[i].id
@@ -67,7 +62,7 @@ int main() {
         }
     } else {
         cout << "Nessun cammino trovato.\n";
-    }
+    }*/
 
     vector<double> punti(pp.vertices.size(), 0.0);
     vector<double> segmenti(pp.edges.size(), 0.0);

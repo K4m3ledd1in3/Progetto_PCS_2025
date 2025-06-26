@@ -170,9 +170,9 @@ namespace PolyhedronLibrary{
         }
     }
 
-    std::cout << "Cammino minimo tra " << id1 << " e " << id2
+    /*std::cout << "Cammino minimo tra " << id1 << " e " << id2
               << ": " << path_ids.size() - 1
-              << " lati, lunghezza totale " << total_length << "\n";
+              << " lati, lunghezza totale " << total_length << "\n";*/
 
     // Costruzione del vettore di vertex da restituire
     std::vector<PolygonalLibrary::vertex> path_vertices;
@@ -256,7 +256,7 @@ namespace PolyhedronLibrary{
     }
 
     void _Polyhedron::Triangulation() {
-    faces_original = faces;
+    
     vector<Edge> edges_1;
     vector<Face> faces_1;
     vector<vertex> ver_1;
@@ -423,184 +423,210 @@ namespace PolyhedronLibrary{
 
     
         void _Polyhedron::Triangulation_2() {
-            // Backup dei dati di Classe 1
-            vector<vertex> vertices_class1 = vertices;
+        // Backup dei dati di Classe 1
+        vector<vertex> vertices_class1 = vertices;
+
+       
+        vector<Face> faces_class1 = faces;
         
-            vector<Face> faces_class1 = faces;
-            
-            vector<Edge> edges_class1 = edges;
+        
+        vector<Edge> edges_class1 = edges;
 
-            // Contenitori per Classe 2
-            vector<vertex> ver_2;
-            vector<Face> faces_2;
-            vector<Edge> edges_2;
-            
-            // Mappa per evitare duplicati nei nuovi vertici di Classe 2
-            map<tuple<double, double, double>, unsigned int> vertex_map_2;
-            unsigned int next_id_2 = 0;
-            vector<vertex> centroidi;
-            //Inserisco i vertici  della Classe 1 in Classe 2
-            for (const vertex& v : vertices_class1){
-                tuple<double, double, double> key(v.x, v.y, v.z);
-                if (!vertex_map_2.count(key)) {
-                    vertex new_v = v;
-                    new_v.id = next_id_2++;
-                    vertex_map_2[key] = new_v.id;
-                    ver_2.push_back(new_v);
-                }
-                
-            }
-
-            //Calcolo i baricentri delle facce della Classe 1
-            for (const Face& faccia : faces_class1){
-                const vertex& v1 = faccia.vertices[0];
-                const vertex& v2 = faccia.vertices[1];
-                const vertex& v3 = faccia.vertices[2];
-
-                double centroid_x = (v1.x + v2.x + v3.x) / 3.0;
-                double centroid_y = (v1.y + v2.y + v3.y) / 3.0;
-                double centroid_z = (v1.z + v2.z + v3.z) / 3.0;
-                vertex centroide(centroid_x,centroid_y,centroid_z, 0);
-                tuple<double, double, double> key(centroid_x, centroid_y, centroid_z);
-                
-                if (vertex_map_2.count(key)){
-                    centroide.id = vertex_map_2[key];
-                }else{
-                    centroide.id = next_id_2++;
-                    vertex_map_2[key] = centroide.id;
-                    ver_2.push_back(centroide);
-                }
-            
-                // Aggiungo il baricentro come nuovo vertice
-                centroidi.push_back(centroide);
+        // Contenitori per Classe 2
+        vector<vertex> ver_2;
+        vector<Face> faces_2;
+        vector<Edge> edges_2;
+        
+        // Mappa per evitare duplicati nei nuovi vertici di Classe 2
+        map<tuple<double, double, double>, unsigned int> vertex_map_2;
+        unsigned int next_id_2 = 0;
+        vector<vertex> centroidi;
+        //Inserisco i vertici  della Classe 1 in Classe 2
+        for (const vertex& v : vertices_class1){
+            tuple<double, double, double> key(v.x, v.y, v.z);
+            if (!vertex_map_2.count(key)) {
+                vertex new_v = v;
+                new_v.id = next_id_2++;
+                vertex_map_2[key] = new_v.id;
+                ver_2.push_back(new_v);
             }
             
-            //collego i baricentri ai vertici della Classe 1
-            
-            unsigned int id_edge_2 = 0;
-            unsigned int id_face_2 = 0;
-            for (size_t i=0; i < faces_class1.size();i++){
-                const Face& faccia = faces_class1[i]; // prendo la faccia corrente
-                const vertex& v1 = faccia.vertices[0]; //Estraggo i tre vertici della faccia triangolare
-                const vertex& v2 = faccia.vertices[1];
-                const vertex& v3 = faccia.vertices[2];
-                const vertex& centroide = centroidi[i]; // prendo il baricentro della faccia corrente
-                
-                //Creo i 3 spigoli
-                Edge e1(v1, centroide, id_edge_2++, 0);
-                Edge e2(v2, centroide, id_edge_2++, 0);
-                Edge e3(v3, centroide, id_edge_2++, 0);
-                // Aggiungo gli spigoli alla Classe 2
-                add_unique_edge(edges_2, e1);
-                add_unique_edge(edges_2, e2);
-                add_unique_edge(edges_2, e3);
+        }
 
+        //Calcolo i baricentri delle facce della Classe 1
+        for (const Face& faccia : faces_class1){
+            const vertex& v1 = faccia.vertices[0];
+            const vertex& v2 = faccia.vertices[1];
+            const vertex& v3 = faccia.vertices[2];
+
+            double centroid_x = (v1.x + v2.x + v3.x) / 3.0;
+            double centroid_y = (v1.y + v2.y + v3.y) / 3.0;
+            double centroid_z = (v1.z + v2.z + v3.z) / 3.0;
+            vertex centroide(centroid_x,centroid_y,centroid_z, 0);
+            tuple<double, double, double> key(centroid_x, centroid_y, centroid_z);
+            
+            if (vertex_map_2.count(key)){
+                centroide.id = vertex_map_2[key];
+            }else{
+                centroide.id = next_id_2++;
+                vertex_map_2[key] = centroide.id;
+                ver_2.push_back(centroide);
             }
+           
+            // Aggiungo il baricentro come nuovo vertice
+            centroidi.push_back(centroide);
+        }
+        
+        //collego i baricentri ai vertici della Classe 1
+        
+        unsigned int id_edge_2 = 0;
+        unsigned int id_face_2 = 0;
+        for (size_t i=0; i < faces_class1.size();i++){
+            const Face& faccia = faces_class1[i]; // prendo la faccia corrente
+            const vertex& v1 = faccia.vertices[0]; //Estraggo i tre vertici della faccia triangolare
+            const vertex& v2 = faccia.vertices[1];
+            const vertex& v3 = faccia.vertices[2];
+            const vertex& centroide = centroidi[i]; // prendo il baricentro della faccia corrente
             
-            map<unsigned int, vector<size_t>> edge_to_faces;
+            //Creo i 3 spigoli
+            Edge e1(v1, centroide, id_edge_2++, 0);
+            Edge e2(v2, centroide, id_edge_2++, 0);
+            Edge e3(v3, centroide, id_edge_2++, 0);
+            // Aggiungo gli spigoli alla Classe 2
+            add_unique_edge(edges_2, e1);
+            add_unique_edge(edges_2, e2);
+            add_unique_edge(edges_2, e3);
 
-            // Per ogni faccia originale, associa i lati
-            for (size_t id_face = 0; id_face < faces_original.size(); ++id_face) {
-                const Face& face = faces_class1[id_face];
+        }
+        
+        
 
-                // Considera ogni coppia di vertici della faccia
-                for (size_t i = 0; i < face.vertices.size(); ++i) {
-                    for (size_t j = i + 1; j < face.vertices.size(); ++j) {
-                        unsigned int id1 = face.vertices[i].id;
-                        unsigned int id2 = face.vertices[j].id;
 
-                        // Trova l’edge nella triangolazione che collega questi vertici
-                        for (const Edge& e : edges_class1) {
-                            if ((e.origin.id == id1 && e.end.id == id2) ||
-                                (e.origin.id == id2 && e.end.id == id1)) {
-                                edge_to_faces[e.id].push_back(id_face);
-                                break;
-                            }
+        
+
+
+        map<unsigned int, vector<size_t>> edge_to_faces;
+
+        // Per ogni faccia originale, associa i lati
+        for (size_t id_face = 0; id_face < faces_class1.size(); ++id_face) {
+            const Face& face = faces_class1[id_face];
+
+            // Considera ogni coppia di vertici della faccia
+            for (size_t i = 0; i < face.vertices.size(); ++i) {
+                for (size_t j = i + 1; j < face.vertices.size(); ++j) {
+                    unsigned int id1 = face.vertices[i].id;
+                    unsigned int id2 = face.vertices[j].id;
+
+                    // Trova l’edge nella triangolazione che collega questi vertici
+                    for (const Edge& e : edges_class1) {
+                        if ((e.origin.id == id1 && e.end.id == id2) ||
+                            (e.origin.id == id2 && e.end.id == id1)) {
+                            edge_to_faces[e.id].push_back(id_face);
+                            break;
                         }
                     }
                 }
             }
-        
-            for (const Edge& e : edges_class1) {
-                auto it = edge_to_faces.find(e.id);
-                if (it == edge_to_faces.end()) continue;
+        }
+       
+        for (const Edge& e : edges_class1) {
+            auto it = edge_to_faces.find(e.id);
+            if (it == edge_to_faces.end()) continue;
 
-                const auto& faces_list = it->second;
+            const auto& faces_list = it->second;
 
-                // **CASO 1: bordo della faccia del poliedro (solo 1 faccia)**
-                if (faces_list.size() == 1) {
-                    size_t face_id = faces_list[0];  // ID della faccia originale
-                    const vertex& baricentro = centroidi[face_id];
+            // **CASO 1: bordo della faccia del poliedro (solo 1 faccia)**
+            if (faces_list.size() == 1) {
+                size_t face_id = faces_list[0];  // ID della faccia originale
+                const vertex& baricentro = centroidi[face_id];
 
-                    // Calcolo del punto medio dello spigolo
-                    double mx = (e.origin.x + e.end.x) / 2.0;
-                    double my = (e.origin.y + e.end.y) / 2.0;
-                    double mz = (e.origin.z + e.end.z) / 2.0;
-                    vertex midpoint(mx, my, mz, 0);
-                    tuple<double,double,double> key(round6(mx), round6(my), round6(mz));
-                    
-                    if (vertex_map_2.count(key)) {
-                        midpoint.id = vertex_map_2[key];
-                    } else {
-                        midpoint.id = next_id_2++;
-                        vertex_map_2[key] = midpoint.id;
-                        ver_2.push_back(midpoint);
+                // Calcolo del punto medio dello spigolo
+                double mx = (e.origin.x + e.end.x) / 2.0;
+                double my = (e.origin.y + e.end.y) / 2.0;
+                double mz = (e.origin.z + e.end.z) / 2.0;
+                vertex midpoint(mx, my, mz, 0);
+                tuple<double,double,double> key(mx, my, mz);
+                
+                if (vertex_map_2.count(key)) {
+                    midpoint.id = vertex_map_2[key];
+                } else {
+                    midpoint.id = next_id_2++;
+                    vertex_map_2[key] = midpoint.id;
 
-                    }
-                    
-
-
-                    // Collego il baricentro al punto medio
-                    Edge eb(baricentro, midpoint, id_edge_2++, 0);
-                    add_unique_edge(edges_2, eb);
-
-                    //  Divido lo spigolo originario in due: origin–midpoint e midpoint–end
-                    Edge e1(midpoint, e.origin, id_edge_2++, 0);
-                    Edge e2(midpoint, e.end,    id_edge_2++, 0);
-                    Edge e3(e.origin, baricentro, id_edge_2++, 0) ;
-                    add_unique_edge(edges_2, e1);
-                    add_unique_edge(edges_2, e2);
-                    add_unique_edge(edges_2, e3);
-                    vector<vertex> vertici_faccia = {baricentro, midpoint, e.origin};
-                    vector<Edge> spigoli_faccia = {e1, e2, e3};
-                    faces_2.push_back(Face(vertici_faccia, spigoli_faccia, id_face_2++, 0));
+                    ver_2.push_back(midpoint);
 
                 }
+                
 
-                // CASO 2: spigolo interno alla faccia del poliedro (2 facce)
-                else if (faces_list.size() == 2) {
-                    const vertex& b1 = centroidi[faces_list[0]];
-                    const vertex& b2 = centroidi[faces_list[1]];
-                    // Scelgo un vertice dello spigolo originale
-                    const vertex& v_orig = e.origin;
 
-                    //  Collego i due baricentri tra di loro
-                    Edge arco_baricentri(b1, b2, id_edge_2++, 0);
-                    add_unique_edge(edges_2, arco_baricentri);
+                // Collego il baricentro al punto medio
+                Edge eb(baricentro, midpoint, id_edge_2++, 0);
+                add_unique_edge(edges_2, eb);
 
-                    // Creo gli spigoli per la faccia
-                    Edge arco_baricentro1_vertice(b1, v_orig, id_edge_2++, 0);
-                    Edge arco_baricentro2_vertice(v_orig, b2, id_edge_2++, 0);
-                    add_unique_edge(edges_2, arco_baricentro1_vertice);
-                    add_unique_edge(edges_2, arco_baricentro2_vertice);
-                    // Creo la faccia triangolare: (b1, v_orig, b2)
-                    vector<vertex> vertici_face = {b1, v_orig, b2};
-                    vector<Edge> spigoli_face = {arco_baricentri, arco_baricentro1_vertice, arco_baricentro2_vertice};
-                    faces_2.push_back(Face(vertici_face, spigoli_face, id_face_2++, 0));
+                //  Divido lo spigolo originario in due: origin–midpoint e midpoint–end
+                Edge e1(midpoint, e.origin, id_edge_2++, 0);
+                Edge e2(midpoint, e.end,    id_edge_2++, 0);
+                Edge e3(e.origin, baricentro, id_edge_2++, 0) ;
+                Edge e4(baricentro, e.end, id_edge_2++, 0);
+                add_unique_edge(edges_2, e1);
+                add_unique_edge(edges_2, e2);
+                add_unique_edge(edges_2, e3);
+                add_unique_edge(edges_2, e4);
+                vector<vertex> vertici_faccia1 = {baricentro, midpoint, e.origin};
+                vector<Edge> spigoli_faccia1 = {e1, eb, e3};
+                vector<vertex> vertici_faccia2 = {baricentro, midpoint, e.end};
+                vector<Edge> spigoli_faccia2 = {e2, eb, e4};
 
-                }
-
-            
+                faces_2.push_back(Face(vertici_faccia1, spigoli_faccia1, id_face_2++, 0));
+                faces_2.push_back(Face(vertici_faccia2, spigoli_faccia2, id_face_2++, 0));  
             }
 
+            // CASO 2: spigolo interno alla faccia del poliedro (2 facce)
+            else if (faces_list.size() == 2) {
+                const vertex& b1 = centroidi[faces_list[0]];
+                const vertex& b2 = centroidi[faces_list[1]];
+                // Scelgo un vertice dello spigolo originale
+                const vertex& v_orig = e.origin;
+                const vertex& v_end = e.end;
+                //  Collego i due baricentri tra di loro
+                Edge arco_baricentri(b1, b2, id_edge_2++, 0);
+                add_unique_edge(edges_2, arco_baricentri);
 
-            faces = faces_2;        
-            vertices = ver_2;
-            edges = edges_2;
+                 // Creo gli spigoli per la faccia
+                Edge arco_baricentro1_vertice(b1, v_orig, id_edge_2++, 0);
+                Edge arco_baricentro2_vertice(v_orig, b2, id_edge_2++, 0);
+                add_unique_edge(edges_2, arco_baricentro1_vertice);
+                add_unique_edge(edges_2, arco_baricentro2_vertice);
+                // Creo la faccia triangolare: (b1, v_orig, b2)
+                vector<vertex> vertici_face = {b1, v_orig, b2};
+                vector<Edge> spigoli_face = {arco_baricentri, arco_baricentro1_vertice, arco_baricentro2_vertice};
+                faces_2.push_back(Face(vertici_face, spigoli_face, id_face_2++, 0));
 
+                // Secondo triangolo: (b1, v_end, b2)
+                Edge arco_b1_vend(b1, v_end, id_edge_2++, 0);
+                Edge arco_vend_b2(v_end, b2, id_edge_2++, 0);
+                add_unique_edge(edges_2, arco_b1_vend);
+                add_unique_edge(edges_2, arco_vend_b2);
 
-        
+                faces_2.push_back(Face({b1, v_end, b2}, {arco_baricentri, arco_b1_vend, arco_vend_b2}, id_face_2++, 0));
+
+            }
+
+           
         }
+
+
+       
+
+        vertices = ver_2;
+        
+       
+
+        edges = edges_2;
+        faces = faces_2;
+
+    
+    }
 
 	void _Polyhedron::OverAll_Triangulation(){
             
